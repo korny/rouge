@@ -381,8 +381,7 @@ module Rouge
       reset! unless opts[:continue]
 
       stream_tokens(string) do |tok, val|
-        next if val.empty?
-        b.call(tok, val) if tok
+        yield tok, val if tok && !val.empty?
       end
     end
 
