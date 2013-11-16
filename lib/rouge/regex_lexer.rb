@@ -298,15 +298,15 @@ module Rouge
       # the most common, for now...
       return false if rule.beginning_of_line? && !scanner.beginning_of_line?
 
-      if (@null_steps ||= 0) >= MAX_NULL_SCANS
-        debug { "    too many scans without consuming the string!" }
-        return false
-      end
-
       scanner.scan(rule.re) or return false
 
       if scanner.matched_size.zero?
+        @null_steps ||= 0
         @null_steps += 1
+        if @null_steps >= MAX_NULL_SCANS
+          debug { "    too many scans without consuming the string!" }
+          return false
+        end
       else
         @null_steps = 0
       end
@@ -321,8 +321,7 @@ module Rouge
     # @param val
     #   (optional) the string value to yield.  If absent, this defaults
     #   to the entire last match.
-    def token(tok, val=:__absent__)
-      val = @current_stream[0] if val == :__absent__
+    def token(tok, val=@current_stream[0])
       yield_token(tok, val)
     end
 
