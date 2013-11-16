@@ -298,9 +298,9 @@ module Rouge
       # the most common, for now...
       return false if rule.beginning_of_line? && !scanner.beginning_of_line?
 
-      scanner.scan(rule.re) or return false
+      size = scanner.skip(rule.re) or return false
 
-      if scanner.matched_size.zero?
+      if size.zero?
         @null_steps ||= 0
         @null_steps += 1
         if @null_steps >= MAX_NULL_SCANS
