@@ -264,10 +264,13 @@ module Rouge
         when Rule
           debug { "  trying #{rule.inspect}" }
 
-          if run_rule(rule, stream)
+          if stream.skip(rule.re)
             debug { "    got #{stream[0].inspect}" }
 
-            run_callback(stream, rule.callback, &b)
+            with_output_stream(b) do
+              @group_count = 0
+              instance_exec(stream, &rule.callback)
+            end
 
             return true
           end
