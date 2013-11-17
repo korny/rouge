@@ -241,7 +241,9 @@ module Rouge
         # debug { "lexer: #{self.class.tag}" }
         # debug { "stack: #{stack.map(&:name).inspect}" }
         # debug { "stream: #{stream.peek(20).inspect}" }
-        success = step(get_state(state), stream, &b)
+        state = get_state(self.state)
+        
+        success = step(state, stream, &b)
 
         if !success
           # debug { "    no match, yielding Error" }
@@ -257,20 +259,16 @@ module Rouge
     # @return false otherwise.
     def step(state, stream)
       state.rules.each do |rule|
-        case rule
-        when Rule
+        if rule.is_a?(Rule)
           next if rule.beginning_of_line? && !stream.beginning_of_line?
           # debug { "  trying #{rule.inspect}" }
-          
           if stream.skip(rule.re)
             # debug { "    got #{stream[0].inspect}" }
-
             @group_count = 0
             instance_exec(stream, &rule.callback)
-
             return true
           end
-        when State
+        else
           # debug { "  entering mixin #{rule.name}" }
           return true if step(rule, stream)
           # debug { "  exiting  mixin #{rule.name}" }
