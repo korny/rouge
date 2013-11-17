@@ -262,8 +262,9 @@ module Rouge
           return true if step(rule, stream, &b)
           debug { "  exiting  mixin #{rule.name}" }
         when Rule
+          next if rule.beginning_of_line? && !stream.beginning_of_line?
           debug { "  trying #{rule.inspect}" }
-
+          
           if stream.skip(rule.re)
             debug { "    got #{stream[0].inspect}" }
 
