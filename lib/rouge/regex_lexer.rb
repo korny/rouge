@@ -234,6 +234,7 @@ module Rouge
 
       @current_stream = stream
       @output_stream  = b
+      @null_steps     = 0
 
       until stream.eos?
         debug { "lexer: #{self.class.tag}" }
@@ -255,19 +256,38 @@ module Rouge
     # @return false otherwise.
     def step(state, stream)
       state.rules.each do |rule|
-        if rule.is_a?(Rule)
-          next if rule.beginning_of_line? && !stream.beginning_of_line?
-          debug { "  trying #{rule.inspect}" }
-          if stream.skip(rule.re)
-            debug { "    got #{stream[0].inspect}" }
-            @group_count = 0
-            instance_exec(stream, &rule.callback)
-            return true
-          end
-        else
+        if rule.is_a?(State)
           debug { "  entering mixin #{rule.name}" }
           return true if step(rule, stream)
           debug { "  exiting  mixin #{rule.name}" }
+        else
+          debug { "  trying #{rule.inspect}" }
+
+          # XXX HACK XXX
+          # StringScanner's implementation of ^ is b0rken.
+          # see http://bugs.ruby-lang.org/issues/7092
+          # TODO: this doesn't cover cases like /(a|^b)/, but it's
+          # the most common, for now...
+          next if rule.beginning_of_line? && !stream.beginning_of_line?
+
+          if size = stream.skip(rule.re)
+            debug { "    got #{stream[0].inspect}" }
+
+            @group_count = 0
+            instance_exec(stream, &rule.callback)
+
+            if size.zero?
+              @null_steps += 1
+              if @null_steps > MAX_NULL_SCANS
+                debug { "    too many scans without consuming the string!" }
+                return false
+              end
+            else
+              @null_steps = 0
+            end
+
+            return true
+          end
         end
       end
 
