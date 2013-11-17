@@ -238,13 +238,13 @@ module Rouge
       @output_stream  = b
 
       until stream.eos?
-        debug { "lexer: #{self.class.tag}" }
-        debug { "stack: #{stack.map(&:name).inspect}" }
-        debug { "stream: #{stream.peek(20).inspect}" }
+        # debug { "lexer: #{self.class.tag}" }
+        # debug { "stack: #{stack.map(&:name).inspect}" }
+        # debug { "stream: #{stream.peek(20).inspect}" }
         success = step(get_state(state), stream, &b)
 
         if !success
-          debug { "    no match, yielding Error" }
+          # debug { "    no match, yielding Error" }
           b.call(Token::Tokens::Error, stream.getch)
         end
       end
@@ -260,22 +260,20 @@ module Rouge
         case rule
         when Rule
           next if rule.beginning_of_line? && !stream.beginning_of_line?
-          debug { "  trying #{rule.inspect}" }
+          # debug { "  trying #{rule.inspect}" }
           
           if stream.skip(rule.re)
-            debug { "    got #{stream[0].inspect}" }
+            # debug { "    got #{stream[0].inspect}" }
 
-            # with_output_stream(b) do
-              @group_count = 0
-              instance_exec(stream, &rule.callback)
-            # end
+            @group_count = 0
+            instance_exec(stream, &rule.callback)
 
             return true
           end
         when State
-          debug { "  entering mixin #{rule.name}" }
+          # debug { "  entering mixin #{rule.name}" }
           return true if step(rule, stream)
-          debug { "  exiting  mixin #{rule.name}" }
+          # debug { "  exiting  mixin #{rule.name}" }
         end
       end
 
@@ -436,7 +434,7 @@ module Rouge
 
     def yield_token(tok, val)
       return if val.nil? || val.empty?
-      @output_stream.call(tok, val)
+      @output_stream.yield(tok, val)
     end
   end
 end
