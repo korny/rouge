@@ -1,3 +1,5 @@
+$ROUGE_DEBUG = false
+
 module Rouge
   # @abstract
   # A stateful lexer that uses sets of regular expressions to
@@ -237,13 +239,13 @@ module Rouge
       @null_steps     = 0
 
       until stream.eos?
-        debug { "lexer: #{self.class.tag}" }
-        debug { "stack: #{stack.map(&:name).inspect}" }
-        debug { "stream: #{stream.peek(20).inspect}" }
+        debug { "lexer: #{self.class.tag}" } if $ROUGE_DEBUG
+        debug { "stack: #{stack.map(&:name).inspect}" } if $ROUGE_DEBUG
+        debug { "stream: #{stream.peek(20).inspect}" } if $ROUGE_DEBUG
         success = step(state, stream)
 
         if !success
-          debug { "    no match, yielding Error" }
+          debug { "    no match, yielding Error" } if $ROUGE_DEBUG
           b.call(Token::Tokens::Error, stream.getch)
         end
       end
@@ -261,11 +263,11 @@ module Rouge
     def step(state, stream)
       state.rules.each do |rule|
         if rule.is_a?(State)
-          debug { "  entering mixin #{rule.name}" }
+          debug { "  entering mixin #{rule.name}" } if $ROUGE_DEBUG
           return true if step(rule, stream)
-          debug { "  exiting  mixin #{rule.name}" }
+          debug { "  exiting  mixin #{rule.name}" } if $ROUGE_DEBUG
         else
-          debug { "  trying #{rule.inspect}" }
+          debug { "  trying #{rule.inspect}" } if $ROUGE_DEBUG
 
           # XXX HACK XXX
           # StringScanner's implementation of ^ is b0rken.
@@ -275,7 +277,7 @@ module Rouge
           next if rule.beginning_of_line? && !stream.beginning_of_line?
 
           if size = stream.skip(rule.re)
-            debug { "    got #{stream[0].inspect}" }
+            debug { "    got #{stream[0].inspect}" } if $ROUGE_DEBUG
 
             @group_count = 0
             instance_exec(stream, &rule.callback)
@@ -283,7 +285,7 @@ module Rouge
             if size.zero?
               @null_steps += 1
               if @null_steps > MAX_NULL_SCANS
-                debug { "    too many scans without consuming the string!" }
+                debug { "    too many scans without consuming the string!" } if $ROUGE_DEBUG
                 return false
               end
             else
@@ -331,11 +333,11 @@ module Rouge
     # @param [String] text
     #   The text to delegate.  This defaults to the last matched string.
     def delegate(lexer, text=nil)
-      debug { "    delegating to #{lexer.inspect}" }
+      debug { "    delegating to #{lexer.inspect}" } if $ROUGE_DEBUG
       text ||= @current_stream[0]
 
       lexer.lex(text, :continue => true) do |tok, val|
-        debug { "    delegated token: #{tok.inspect}, #{val.inspect}" }
+        debug { "    delegated token: #{tok.inspect}, #{val.inspect}" } if $ROUGE_DEBUG
         yield_token(tok, val)
       end
     end
@@ -357,7 +359,7 @@ module Rouge
         self.state
       end
 
-      debug { "    pushing #{push_state.name}" }
+      debug { "    pushing #{push_state.name}" } if $ROUGE_DEBUG
       stack.push(push_state)
     end
 
@@ -366,7 +368,7 @@ module Rouge
     def pop!(times=1)
       raise 'empty stack!' if stack.empty?
 
-      debug { "    popping stack: #{times}" }
+      debug { "    popping stack: #{times}" } if $ROUGE_DEBUG
 
       stack.pop(times)
 
@@ -381,7 +383,7 @@ module Rouge
 
     # reset the stack back to `[:root]`.
     def reset_stack
-      debug { '    resetting stack' }
+      debug { '    resetting stack' } if $ROUGE_DEBUG
       stack.clear
       stack.push get_state(:root)
     end
