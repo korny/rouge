@@ -257,10 +257,6 @@ module Rouge
     def step(state, stream, &b)
       state.rules.each do |rule|
         case rule
-        when State
-          debug { "  entering mixin #{rule.name}" }
-          return true if step(rule, stream, &b)
-          debug { "  exiting  mixin #{rule.name}" }
         when Rule
           next if rule.beginning_of_line? && !stream.beginning_of_line?
           debug { "  trying #{rule.inspect}" }
@@ -275,6 +271,10 @@ module Rouge
 
             return true
           end
+        when State
+          debug { "  entering mixin #{rule.name}" }
+          return true if step(rule, stream, &b)
+          debug { "  exiting  mixin #{rule.name}" }
         end
       end
 
