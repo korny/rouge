@@ -236,13 +236,13 @@ module Rouge
       @output_stream  = b
 
       until stream.eos?
-        # debug { "lexer: #{self.class.tag}" }
-        # debug { "stack: #{stack.map(&:name).inspect}" }
-        # debug { "stream: #{stream.peek(20).inspect}" }
+        debug { "lexer: #{self.class.tag}" }
+        debug { "stack: #{stack.map(&:name).inspect}" }
+        debug { "stream: #{stream.peek(20).inspect}" }
         success = step(state, stream)
 
         if !success
-          # debug { "    no match, yielding Error" }
+          debug { "    no match, yielding Error" }
           b.call(Token::Tokens::Error, stream.getch)
         end
       end
@@ -257,17 +257,17 @@ module Rouge
       state.rules.each do |rule|
         if rule.is_a?(Rule)
           next if rule.beginning_of_line? && !stream.beginning_of_line?
-          # debug { "  trying #{rule.inspect}" }
+          debug { "  trying #{rule.inspect}" }
           if stream.skip(rule.re)
-            # debug { "    got #{stream[0].inspect}" }
+            debug { "    got #{stream[0].inspect}" }
             @group_count = 0
             instance_exec(stream, &rule.callback)
             return true
           end
         else
-          # debug { "  entering mixin #{rule.name}" }
+          debug { "  entering mixin #{rule.name}" }
           return true if step(rule, stream)
-          # debug { "  exiting  mixin #{rule.name}" }
+          debug { "  exiting  mixin #{rule.name}" }
         end
       end
 
@@ -370,7 +370,7 @@ module Rouge
         self.state
       end
 
-      # debug { "    pushing #{push_state.name}" }
+      debug { "    pushing #{push_state.name}" }
       stack.push(push_state)
     end
 
@@ -379,7 +379,7 @@ module Rouge
     def pop!(times=1)
       raise 'empty stack!' if stack.empty?
 
-      # debug { "    popping stack: #{times}" }
+      debug { "    popping stack: #{times}" }
 
       stack.pop(times)
 
