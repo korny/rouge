@@ -235,6 +235,7 @@ module Rouge
       stream = StringScanner.new(str)
 
       @current_stream = stream
+      @output_stream  = b
 
       until stream.eos?
         debug { "lexer: #{self.class.tag}" }
@@ -264,10 +265,10 @@ module Rouge
           if stream.skip(rule.re)
             debug { "    got #{stream[0].inspect}" }
 
-            with_output_stream(b) do
+            # with_output_stream(b) do
               @group_count = 0
               instance_exec(stream, &rule.callback)
-            end
+            # end
 
             return true
           end
@@ -435,7 +436,7 @@ module Rouge
 
     def yield_token(tok, val)
       return if val.nil? || val.empty?
-      @output_stream.yield(tok, val)
+      @output_stream.call(tok, val)
     end
   end
 end
