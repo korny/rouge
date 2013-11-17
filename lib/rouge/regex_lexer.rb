@@ -249,6 +249,10 @@ module Rouge
       end
     end
 
+    # The number of successive scans permitted without consuming
+    # the input stream.  If this is exceeded, the match fails.
+    MAX_NULL_SCANS = 5
+
     # Runs one step of the lex.  Rules in the current state are tried
     # until one matches, at which point its callback is called.
     #
@@ -292,43 +296,6 @@ module Rouge
       end
 
       false
-    end
-
-    # @private
-    def run_callback(stream, callback, &output_stream)
-      with_output_stream(output_stream) do
-        @group_count = 0
-        instance_exec(stream, &callback)
-      end
-    end
-
-    # The number of successive scans permitted without consuming
-    # the input stream.  If this is exceeded, the match fails.
-    MAX_NULL_SCANS = 5
-
-    # @private
-    def run_rule(rule, scanner)
-      # XXX HACK XXX
-      # StringScanner's implementation of ^ is b0rken.
-      # see http://bugs.ruby-lang.org/issues/7092
-      # TODO: this doesn't cover cases like /(a|^b)/, but it's
-      # the most common, for now...
-      return false if rule.beginning_of_line? && !scanner.beginning_of_line?
-
-      size = scanner.skip(rule.re) or return false
-
-      if size.zero?
-        @null_steps ||= 0
-        @null_steps += 1
-        if @null_steps >= MAX_NULL_SCANS
-          debug { "    too many scans without consuming the string!" }
-          return false
-        end
-      else
-        @null_steps = 0
-      end
-
-      true
     end
 
     # Yield a token.
@@ -433,19 +400,6 @@ module Rouge
     end
 
   private
-    def with_output_stream(output_stream, &b)
-      old_output_stream = @output_stream
-      @output_stream = Enumerator::Yielder.new do |tok, val|
-        debug { "    yielding #{tok.qualname}, #{val.inspect}" }
-        output_stream.call(tok, val)
-      end
-
-      yield
-
-    ensure
-      @output_stream = old_output_stream
-    end
-
     def yield_token(tok, val)
       return if val.nil? || val.empty?
       @output_stream.yield(tok, val)
