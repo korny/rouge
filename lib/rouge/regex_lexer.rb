@@ -242,7 +242,7 @@ module Rouge
         # debug { "stack: #{stack.map(&:name).inspect}" }
         # debug { "stream: #{stream.peek(20).inspect}" }
         state = get_state(self.state)
-        
+
         success = step(state, stream)
 
         if !success
