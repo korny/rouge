@@ -101,11 +101,11 @@ module Rouge
       def rule(re, tok=nil, next_state=nil, &callback)
         callback ||= case next_state
         when :pop!
-          proc { token tok; pop! }
+          proc { |stream| @output_stream.call(tok, stream[0]); pop! }
         when Symbol
-          proc { token tok; push next_state }
+          proc { |stream| @output_stream.call(tok, stream[0]); push next_state }
         else
-          proc { token tok }
+          proc { |stream| @output_stream.call(tok, stream[0]) }
         end
 
         rules << Rule.new(re, callback)
