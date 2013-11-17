@@ -180,10 +180,8 @@ module Rouge
     def self.get_state(name)
       return name if name.is_a? State
 
-      name = name.to_s
-
-      states[name] ||= begin
-        defn = state_definitions[name] or raise "unknown state: #{name.inspect}"
+      states[name.to_sym] ||= begin
+        defn = state_definitions[name.to_s] or raise "unknown state: #{name.inspect}"
         defn.to_state(self)
       end
     end
