@@ -101,7 +101,7 @@ module Rouge
       def rule(re, tok=nil, next_state=nil, &callback)
         callback ||= case next_state
         when :pop!
-          proc { |stream| @output_stream.call(tok, stream[0]); pop! }
+          proc { |stream| @output_stream.call(tok, stream[0]); @stack.pop or raise 'empty stack!' }
         when Symbol
           proc { |stream| @output_stream.call(tok, stream[0]); push next_state }
         else
@@ -372,7 +372,7 @@ module Rouge
         self.state
       end
 
-      debug { "    pushing #{push_state.name}" }
+      # debug { "    pushing #{push_state.name}" }
       stack.push(push_state)
     end
 
@@ -381,7 +381,7 @@ module Rouge
     def pop!(times=1)
       raise 'empty stack!' if stack.empty?
 
-      debug { "    popping stack: #{times}" }
+      # debug { "    popping stack: #{times}" }
 
       stack.pop(times)
 
