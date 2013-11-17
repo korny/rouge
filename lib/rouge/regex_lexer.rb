@@ -243,7 +243,7 @@ module Rouge
         # debug { "stream: #{stream.peek(20).inspect}" }
         state = get_state(self.state)
         
-        success = step(state, stream, &b)
+        success = step(state, stream)
 
         if !success
           # debug { "    no match, yielding Error" }
