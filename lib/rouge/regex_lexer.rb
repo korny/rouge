@@ -255,7 +255,7 @@ module Rouge
     #
     # @return true if a rule was tried successfully
     # @return false otherwise.
-    def step(state, stream, &b)
+    def step(state, stream)
       state.rules.each do |rule|
         case rule
         when Rule
@@ -274,7 +274,7 @@ module Rouge
           end
         when State
           debug { "  entering mixin #{rule.name}" }
-          return true if step(rule, stream, &b)
+          return true if step(rule, stream)
           debug { "  exiting  mixin #{rule.name}" }
         end
       end
