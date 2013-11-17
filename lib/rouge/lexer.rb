@@ -380,9 +380,23 @@ module Rouge
 
       reset! unless opts[:continue]
 
+      # consolidate consecutive tokens of the same type
+      last_token = nil
+      last_val = nil
       stream_tokens(string) do |tok, val|
-        yield tok, val if tok && !val.empty?
+        next if val.empty?
+
+        if tok == last_token
+          last_val << val
+          next
+        end
+
+        b.call(last_token, last_val) if last_token
+        last_token = tok
+        last_val = val
       end
+
+      b.call(last_token, last_val) if last_token
     end
 
     # delegated to {Lexer.tag}
