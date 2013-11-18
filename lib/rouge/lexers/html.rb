@@ -14,10 +14,6 @@ module Rouge
       state :root do
         rule /[^<&]+/m, Text
         rule /&\S*?;/, Name::Entity
-        rule /<!DOCTYPE .*?>/i, Comment::Preproc
-        rule /<!\[CDATA\[.*?\]\]>/m, Comment::Preproc
-        rule /<!--/, Comment, :comment
-        rule /<\?.*?\?>/m, Comment::Preproc # php? really?
 
         rule /<\s*script\s*/m do
           token Name::Tag
@@ -33,6 +29,11 @@ module Rouge
 
         rule %r(<\s*[a-zA-Z0-9:]+), Name::Tag, :tag # opening tags
         rule %r(<\s*/\s*[a-zA-Z0-9:]+\s*>), Name::Tag # closing tags
+
+        rule /<!DOCTYPE .*?>/i, Comment::Preproc
+        rule /<!\[CDATA\[.*?\]\]>/m, Comment::Preproc
+        rule /<!--/, Comment, :comment
+        rule /<\?.*?\?>/m, Comment::Preproc # php? really?
       end
 
       state :comment do
