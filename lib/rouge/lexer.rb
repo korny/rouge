@@ -322,6 +322,8 @@ module Rouge
     #   tried and each stream consumed.  Try it, it's pretty useful.
     def initialize(opts={})
       options(opts)
+      
+      $ROUGE_DEBUG = option(:debug)
     end
 
     # get and/or specify the options for this lexer.
@@ -345,7 +347,7 @@ module Rouge
     # information that is unnecessary for lexing in the real world.
     #
     # @example
-    #   debug { "hello, world!" }
+    #   debug { "hello, world!" } if $ROUGE_DEBUG
     def debug(&b)
       # This method is a hotspot, unfortunately.
       #
