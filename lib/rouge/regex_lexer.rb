@@ -12,18 +12,10 @@ module Rouge
     class Rule
       attr_reader :callback
       attr_reader :re
+      attr_reader :beginning_of_line
       def initialize(re, callback)
         @re = re
         @callback = callback
-      end
-
-      # Does the regex start with a ^?
-      #
-      # Since Regexps are immuntable, this is cached to avoid
-      # calling Regexp#source more than once.
-      def beginning_of_line?
-        return @beginning_of_line if instance_variable_defined?(:@beginning_of_line)
-
         @beginning_of_line = re.source[0] == ?^
       end
 
@@ -274,7 +266,7 @@ module Rouge
           # see http://bugs.ruby-lang.org/issues/7092
           # TODO: this doesn't cover cases like /(a|^b)/, but it's
           # the most common, for now...
-          next if rule.beginning_of_line? && !stream.beginning_of_line?
+          next if rule.beginning_of_line && !stream.beginning_of_line?
 
           if size = stream.skip(rule.re)
             debug { "    got #{stream[0].inspect}" } if $ROUGE_DEBUG
