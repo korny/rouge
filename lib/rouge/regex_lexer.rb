@@ -97,7 +97,7 @@ module Rouge
         when :pop!
           proc { |stream| @output_stream.call(tok, stream[0]); @stack.pop or raise 'empty stack!' }
         when Symbol
-          proc { |stream| @output_stream.call(tok, stream[0]); @stack.push(self.class.states[next_state] || self.class.get_state(next_state)) }
+          proc { |stream| @output_stream.call(tok, stream[0]); @stack.push(@states[next_state] || self.class.get_state(next_state)) }
         else
           proc { |stream| @output_stream.call(tok, stream[0]) }
         end
@@ -228,6 +228,7 @@ module Rouge
 
       @current_stream = stream
       @output_stream  = b
+      @states         = self.class.states
       @null_steps     = 0
 
       until stream.eos?
