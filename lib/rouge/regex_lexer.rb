@@ -1,5 +1,3 @@
-$ROUGE_DEBUG = false
-
 module Rouge
   # @abstract
   # A stateful lexer that uses sets of regular expressions to
@@ -95,11 +93,19 @@ module Rouge
       def rule(re, tok=nil, next_state=nil, &callback)
         callback ||= case next_state
         when :pop!
-          proc { |stream| @output_stream.call(tok, stream[0]); @stack.pop or raise 'empty stack!' }
+          proc do |stream|
+            @output_stream.call(tok, stream[0])
+            @stack.pop or raise 'empty stack!'
+          end
         when Symbol
-          proc { |stream| @output_stream.call(tok, stream[0]); @stack.push(@states[next_state] || self.class.get_state(next_state)) }
+          proc do |stream|
+            @output_stream.call(tok, stream[0])
+            @stack.push(@states[next_state] || self.class.get_state(next_state))
+          end
         else
-          proc { |stream| @output_stream.call(tok, stream[0]) }
+          proc do |stream|
+            @output_stream.call(tok, stream[0])
+          end
         end
 
         rules << Rule.new(re, callback)

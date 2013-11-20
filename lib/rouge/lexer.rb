@@ -2,6 +2,8 @@
 require 'strscan'
 require 'cgi'
 
+$ROUGE_DEBUG = false
+
 module Rouge
   # @abstract
   # A lexer transforms text into a stream of `[token, chunk]` pairs.
