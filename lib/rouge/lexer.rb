@@ -2,8 +2,6 @@
 require 'strscan'
 require 'cgi'
 
-$ROUGE_DEBUG = false
-
 module Rouge
   # @abstract
   # A lexer transforms text into a stream of `[token, chunk]` pairs.
@@ -325,7 +323,7 @@ module Rouge
     def initialize(opts={})
       options(opts)
       
-      $ROUGE_DEBUG = option(:debug)
+      @debug = option(:debug)
     end
 
     # get and/or specify the options for this lexer.
@@ -349,20 +347,9 @@ module Rouge
     # information that is unnecessary for lexing in the real world.
     #
     # @example
-    #   debug { "hello, world!" } if $ROUGE_DEBUG
-    def debug(&b)
-      # This method is a hotspot, unfortunately.
-      #
-      # For performance reasons, the "debug" option of a lexer cannot
-      # be changed once it has begun lexing.  This method will redefine
-      # itself on the first call to a noop if "debug" is not set.
-      if option(:debug)
-        def self.debug; puts yield; end
-      else
-        def self.debug; end
-      end
-
-      debug(&b)
+    #   debug { "hello, world!" } if @debug
+    def debug
+      puts yield if @debug
     end
 
     # @abstract
