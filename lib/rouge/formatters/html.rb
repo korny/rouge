@@ -88,15 +88,13 @@ module Rouge
 
       # TODO: properly html-encode val
       TABLE_FOR_ESCAPE_HTML = {
-        "'" => '&#39;',
         '&' => '&amp;',
-        '"' => '&quot;',
         '<' => '&lt;',
         '>' => '&gt;',
       }
 
       def span(tok, val)
-        val = val.gsub(/['&\"<>]/, TABLE_FOR_ESCAPE_HTML)
+        val = val.gsub(/[&<>]/, TABLE_FOR_ESCAPE_HTML)
         shortname = tok.shortname or raise "unknown token: #{tok.inspect} for #{val.inspect}"
 
         if shortname.empty?
