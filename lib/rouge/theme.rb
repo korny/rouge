@@ -1,5 +1,7 @@
 module Rouge
   class Theme
+    include Token::Tokens
+
     class Style < Hash
       def initialize(theme, hsh={})
         super()
@@ -20,19 +22,22 @@ module Rouge
         return if empty?
 
         yield "#{selector} {"
-        yield "  color: #{fg};" if fg
-        yield "  background-color: #{bg};" if bg
-        yield "  font-weight: bold;" if self[:bold]
-        yield "  font-style: italic;" if self[:italic]
-        yield "  text-decoration: underline;" if self[:underline]
-
-        (self[:rules] || []).each do |rule|
+        rendered_rules.each do |rule|
           yield "  #{rule};"
         end
-
         yield "}"
       end
 
+      def rendered_rules(&b)
+        return enum_for(:rendered_rules) unless b
+        yield "color: #{fg}" if fg
+        yield "background-color: #{bg}" if bg
+        yield "font-weight: bold" if self[:bold]
+        yield "font-style: italic" if self[:italic]
+        yield "text-decoration: underline" if self[:underline]
+
+        (self[:rules] || []).each(&b)
+      end
     end
 
     def styles
@@ -72,18 +77,20 @@ module Rouge
         style = Style.new(self, style)
 
         tokens.each do |tok|
-          styles[tok.to_s] = style
+          styles[tok] = style
         end
       end
 
       def get_own_style(token)
-        token.ancestors do |anc|
-          return styles[anc.name] if styles[anc.name]
+        token.token_chain.each do |anc|
+          return styles[anc] if styles[anc]
         end
+
+        nil
       end
 
       def get_style(token)
-        get_own_style(token) || style['Text']
+        get_own_style(token) || styles[Token::Tokens::Text]
       end
 
       def name(n=nil)
@@ -135,18 +142,20 @@ module Rouge
       # shared styles for tableized line numbers
       yield "#{@scope} table { border-spacing: 0; }"
       yield "#{@scope} table td { padding: 5px; }"
+      yield "#{@scope} table pre { margin: 0; }"
       yield "#{@scope} table .gutter { text-align: right; }"
 
-      styles.each do |tokname, style|
-        style.render(css_selector(Token[tokname]), &b)
+      styles.each do |tok, style|
+        style.render(css_selector(tok), &b)
       end
+    end
+
+    def style_for(tok)
+      self.class.get_style(tok)
     end
 
   private
     def css_selector(token)
-      tokens = [token]
-      parent = token.parent
-
       inflate_token(token).map do |tok|
         raise "unknown token: #{tok.inspect}" if tok.shortname.nil?
 
@@ -155,7 +164,7 @@ module Rouge
     end
 
     def single_css_selector(token)
-      return @scope if token == Token['Text']
+      return @scope if token == Text
 
       "#{@scope} .#{token.shortname}"
     end
@@ -169,7 +178,7 @@ module Rouge
 
       yield tok
       tok.sub_tokens.each do |(_, st)|
-        next if styles[st.name]
+        next if styles[st]
 
         inflate_token(st, &b)
       end

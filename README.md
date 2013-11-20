@@ -2,14 +2,13 @@
 
 [![Build Status](https://secure.travis-ci.org/jayferd/rouge.png)](http://travis-ci.org/jayferd/rouge)
 
-Rouge is a pure-ruby syntax highlighter.  It can highlight nearly 50 languages, and output HTML or ANSI 256-color text.  Its HTML output is compatible with stylesheets designed for [pygments][].
+Rouge is a pure-ruby syntax highlighter.  It can highlight nearly 60 languages, and output HTML or ANSI 256-color text.  Its HTML output is compatible with stylesheets designed for [pygments][].
 
 If you'd like to help out with this project, assign yourself something from the [issues][] page, and send me a pull request (even if it's not done yet!).  Bonus points for feature branches.  In particular, I would appreciate help with the following lexers, from someone who has more experience with the language than I do:
 
-* Objective-C
 * Delphi/Pascal
 
-[issues]: /jayferd/rouge/issues "Help Out"
+[issues]: https://github.com/jayferd/rouge/issues "Help Out"
 [pygments]: http://pygments.org/ "Pygments"
 
 ## Usage
@@ -21,7 +20,7 @@ First, take a look at the [pretty colors][].
 ``` ruby
 # make some nice lexed html
 source = File.read('/etc/bashrc')
-formatter = Rouge::Formatters::HTML.new(:css_class => '.highlight')
+formatter = Rouge::Formatters::HTML.new(:css_class => 'highlight')
 lexer = Rouge::Lexers::Shell.new
 formatter.format(lexer.lex(source))
 
@@ -48,7 +47,9 @@ $ rougify foo.rb
 ## You can even use it with Redcarpet
 
 ``` ruby
+require 'rouge'
 require 'rouge/plugins/redcarpet'
+
 class HTML < Redcarpet::Render::HTML
   include Rouge::Plugins::Redcarpet # yep, that's it.
 end
@@ -70,6 +71,10 @@ Rouge is only for UTF-8 strings.  If you'd like to highlight a string with a dif
 
 ## Contributing
 
+### Installing Ruby
+
+If you're here to implement a lexer for your awesome language, there's a good chance you don't already have a ruby development environment set up.  Follow the [instructions on the wiki](https://github.com/jayferd/rouge/wiki/Setting-up-Ruby) to get up and running.  If you have trouble getting set up, let me know - I'm always happy to help.
+
 ### Run the tests
 
 You can test the core of Rouge simply by running `rake` (no `bundle exec` required).  It's also set up with `guard`, if you like.
@@ -90,9 +95,13 @@ Here's how you might use it:
 class MyLexer < Rouge::RegexLexer
   state :root do
     # the "easy way"
-    rule /abc/, 'A.Token'
-    rule /abc/, 'A.Token', :next_state
-    rule /abc/, 'A.Token', :pop!
+
+    # simple rules
+    rule /0x[0-9a-f]+/, Num::Hex
+
+    # simple state stack manipulation
+    rule /{-/, Comment, :next_state
+    rule /-}/, Comment, :pop!
 
     # the "flexible way"
     rule /abc/ do |m|
@@ -105,13 +114,11 @@ class MyLexer < Rouge::RegexLexer
       state? :some_state # check if the current state is :some_state
       in_state? :some_state # check if :some_state is in the state stack
 
-      eos? # check if the stream is empty
-
       # yield a token.  if no second argument is supplied, the value is
       # taken to be the whole match.
       # The sum of all the tokens yielded must be equivalent to the whole
       # match - otherwise characters will go missing from the user's input.
-      token 'A.Token.Type', m[0]
+      token Generic::Output, m[0]
 
       # calls SomeOtherLexer.lex(str) and yields its output.  See the
       # HTML lexer for a nice example of this.
@@ -125,14 +132,14 @@ class MyLexer < Rouge::RegexLexer
 
       # advanced: push a dynamically created anonymous state
       push do
-        rule /.../, 'A.Token'
+        rule /.../, Generic::Output
       end
     end
 
-    rule /(a)(b)/ do
+    rule /(\w+)(:)/
       # "group" yields the matched groups in order
-      group 'Letter.A'
-      group 'Letter.B'
+      group Name::Label
+      group Punctuation
     end
   end
 

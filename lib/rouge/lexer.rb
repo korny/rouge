@@ -6,6 +6,8 @@ module Rouge
   # @abstract
   # A lexer transforms text into a stream of `[token, chunk]` pairs.
   class Lexer
+    include Token::Tokens
+
     class << self
       # Lexes `stream` with the given options.  The lex is delegated to a
       # new instance.
@@ -13,6 +15,13 @@ module Rouge
       # @see #lex
       def lex(stream, opts={}, &b)
         new(opts).lex(stream, &b)
+      end
+
+      def load_const(const_name, relpath)
+        return if Lexers.const_defined?(const_name)
+
+        root = Pathname.new(__FILE__).dirname.join('lexers')
+        load root.join(relpath)
       end
 
       def default_options(o={})
@@ -141,7 +150,7 @@ module Rouge
       def guess(info={})
         lexers = guesses(info)
 
-        return Lexers::Text if lexers.empty?
+        return Lexers::PlainText if lexers.empty?
         return lexers[0] if lexers.size == 1
 
         raise AmbiguousGuess.new(lexers)
@@ -161,7 +170,8 @@ module Rouge
 
     private
       def filter_by_mimetype(lexers, mt)
-        lexers.select { |lexer| lexer.mimetypes.include? mt }
+        filtered = lexers.select { |lexer| lexer.mimetypes.include? mt }
+        filtered.any? ? filtered : lexers
       end
 
       # returns a list of lexers that match the given filename with
@@ -193,17 +203,26 @@ module Rouge
           end
         end
 
-        out
+        out.any? ? out : lexers
       end
 
       def best_by_source(lexers, source, threshold=0)
+        source = case source
+        when String
+          source
+        when ->(s){ s.respond_to? :read }
+          source.read
+        else
+          raise 'invalid source'
+        end
+
         assert_utf8!(source)
 
         source = TextAnalyzer.new(source)
 
         best_result = threshold
         best_match = nil
-        registry.values.each do |lexer|
+        lexers.each do |lexer|
           result = lexer.analyze_text(source) || 0
           return lexer if result == 1
 

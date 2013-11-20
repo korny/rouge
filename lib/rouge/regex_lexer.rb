@@ -35,35 +35,50 @@ module Rouge
     #
     # @see RegexLexer.state
     class State
-      attr_reader :name
-      def initialize(name, &defn)
+      attr_reader :name, :rules
+      def initialize(name, rules)
         @name = name
-        @defn = defn
+        @rules = rules
       end
 
-      def rules
-        @rules ||= []
-      end
-
-      def load!(lexer_class)
-        return self if @loaded
-        @loaded = true
-        StateDSL.new(rules).instance_eval(&@defn)
-
-        rules.map! do |rule|
-          rule.is_a?(String) ? lexer_class.get_state(rule) : rule
-        end
-
-        self
+      def inspect
+        "#<#{self.class.name} #{@name.inspect}>"
       end
     end
 
     class StateDSL
       attr_reader :rules
-      def initialize(rules)
-        @rules = rules
+      def initialize(name, &defn)
+        @name = name
+        @defn = defn
+        @rules = []
       end
 
+      def to_state(lexer_class)
+        load!
+        rules = @rules.map do |rule|
+          rule.is_a?(String) ? lexer_class.get_state(rule) : rule
+        end
+        State.new(@name, rules)
+      end
+
+      def prepended(&defn)
+        parent_defn = @defn
+        StateDSL.new(@name) do
+          instance_eval(&defn)
+          instance_eval(&parent_defn)
+        end
+      end
+
+      def appended(&defn)
+        parent_defn = @defn
+        StateDSL.new(@name) do
+          instance_eval(&parent_defn)
+          instance_eval(&defn)
+        end
+      end
+
+    protected
       # Define a new rule for this state.
       #
       # @overload rule(re, token, next_state=nil)
@@ -99,8 +114,15 @@ module Rouge
       # Mix in the rules from another state into this state.  The rules
       # from the mixed-in state will be tried in order before moving on
       # to the rest of the rules in this state.
-      def mixin(lexer_name)
-        rules << lexer_name.to_s
+      def mixin(state)
+        rules << state.to_s
+      end
+
+    private
+      def load!
+        return if @loaded
+        @loaded = true
+        instance_eval(&@defn)
       end
     end
 
@@ -108,6 +130,16 @@ module Rouge
     # @see state
     def self.states
       @states ||= {}
+    end
+
+    def self.state_definitions
+      @state_definitions ||= InheritableHash.new(superclass.state_definitions)
+    end
+    @state_definitions = {}
+
+    def self.replace_state(name, new_defn)
+      states[name] = nil
+      state_definitions[name] = new_defn
     end
 
     # The routines to run at the beginning of a fresh lex.
@@ -129,16 +161,31 @@ module Rouge
     # The block will be evaluated in the context of a {StateDSL}.
     def self.state(name, &b)
       name = name.to_s
-      states[name] = State.new(name, &b)
+      state_definitions[name] = StateDSL.new(name, &b)
+    end
+
+    def self.prepend(name, &b)
+      name = name.to_s
+      dsl = state_definitions[name] or raise "no such state #{name.inspect}"
+      replace_state(name, dsl.prepended(&b))
+    end
+
+    def self.append(state, &b)
+      name = name.to_s
+      dsl = state_definitions[name] or raise "no such state #{name.inspect}"
+      replace_state(name, dsl.appended(&b))
     end
 
     # @private
     def self.get_state(name)
       return name if name.is_a? State
 
-      state = states[name.to_s]
-      raise "unknown state: #{name}" unless state
-      state.load!(self)
+      name = name.to_s
+
+      states[name] ||= begin
+        defn = state_definitions[name] or raise "unknown state: #{name.inspect}"
+        defn.to_state(self)
+      end
     end
 
     # @private
@@ -165,6 +212,7 @@ module Rouge
     # start_procs.
     def reset!
       @stack = nil
+      @current_stream = nil
 
       self.class.start_procs.each do |pr|
         instance_eval(&pr)
@@ -186,6 +234,8 @@ module Rouge
     def stream_tokens(str, &b)
       stream = StringScanner.new(str)
 
+      @current_stream = stream
+
       until stream.eos?
         debug { "lexer: #{self.class.tag}" }
         debug { "stack: #{stack.map(&:name).inspect}" }
@@ -194,7 +244,7 @@ module Rouge
 
         if !success
           debug { "    no match, yielding Error" }
-          b.call(Token['Error'], stream.getch)
+          b.call(Token::Tokens::Error, stream.getch)
         end
       end
     end
@@ -231,9 +281,7 @@ module Rouge
     def run_callback(stream, callback, &output_stream)
       with_output_stream(output_stream) do
         @group_count = 0
-        @last_match = stream
         instance_exec(stream, &callback)
-        @last_match = nil
       end
     end
 
@@ -242,7 +290,7 @@ module Rouge
     MAX_NULL_SCANS = 5
 
     # @private
-    def run_rule(rule, scanner, &b)
+    def run_rule(rule, scanner)
       # XXX HACK XXX
       # StringScanner's implementation of ^ is b0rken.
       # see http://bugs.ruby-lang.org/issues/7092
@@ -274,18 +322,20 @@ module Rouge
     #   (optional) the string value to yield.  If absent, this defaults
     #   to the entire last match.
     def token(tok, val=:__absent__)
-      val = @last_match[0] if val == :__absent__
-      val ||= ''
-
-      raise 'no output stream' unless @output_stream
-
-      @output_stream << [Token[tok], val] unless val.empty?
+      val = @current_stream[0] if val == :__absent__
+      yield_token(tok, val)
     end
 
     # Yield a token with the next matched group.  Subsequent calls
     # to this method will yield subsequent groups.
     def group(tok)
-      token(tok, @last_match[@group_count += 1])
+      yield_token(tok, @current_stream[@group_count += 1])
+    end
+
+    def groups(*tokens)
+      tokens.each_with_index do |tok, i|
+        yield_token(tok, @current_stream[i+1])
+      end
     end
 
     # Delegate the lex to another lexer.  The #lex method will be called
@@ -299,12 +349,16 @@ module Rouge
     #   The text to delegate.  This defaults to the last matched string.
     def delegate(lexer, text=nil)
       debug { "    delegating to #{lexer.inspect}" }
-      text ||= @last_match[0]
+      text ||= @current_stream[0]
 
       lexer.lex(text, :continue => true) do |tok, val|
         debug { "    delegated token: #{tok.inspect}, #{val.inspect}" }
-        token(tok, val)
+        yield_token(tok, val)
       end
+    end
+
+    def recurse(text=nil)
+      delegate(self.class, text)
     end
 
     # Push a state onto the stack.  If no state name is given and you've
@@ -314,7 +368,7 @@ module Rouge
       push_state = if state_name
         get_state(state_name)
       elsif block_given?
-        State.new(b.inspect, &b).load!(self.class)
+        StateDSL.new(b.inspect, &b).to_state(self.class)
       else
         # use the top of the stack by default
         self.state
@@ -336,6 +390,12 @@ module Rouge
       nil
     end
 
+    # replace the head of the stack with the given state
+    def goto(state_name)
+      raise 'empty stack!' if stack.empty?
+      stack[-1] = get_state(state_name)
+    end
+
     # reset the stack back to `[:root]`.
     def reset_stack
       debug { '    resetting stack' }
@@ -345,7 +405,10 @@ module Rouge
 
     # Check if `state_name` is in the state stack.
     def in_state?(state_name)
-      stack.map(&:name).include? state_name.to_s
+      state_name = state_name.to_s
+      stack.any? do |state|
+        state.name == state_name.to_s
+      end
     end
 
     # Check if `state_name` is the state on top of the state stack.
@@ -357,14 +420,19 @@ module Rouge
     def with_output_stream(output_stream, &b)
       old_output_stream = @output_stream
       @output_stream = Enumerator::Yielder.new do |tok, val|
-        debug { "    yielding #{tok.to_s.inspect}, #{val.inspect}" }
-        output_stream.call(Token[tok], val)
+        debug { "    yielding #{tok.qualname}, #{val.inspect}" }
+        output_stream.call(tok, val)
       end
 
       yield
 
     ensure
       @output_stream = old_output_stream
+    end
+
+    def yield_token(tok, val)
+      return if val.nil? || val.empty?
+      @output_stream.yield(tok, val)
     end
   end
 end

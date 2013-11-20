@@ -22,6 +22,19 @@ module Rouge
       def self.keywords_type
         @keywords_type ||= Set.new %w(
           int long float short double char unsigned signed void
+
+          jmp_buf FILE DIR div_t ldiv_t mbstate_t sig_atomic_t fpos_t
+          clock_t time_t va_list size_t ssize_t off_t wchar_t ptrdiff_t
+          wctrans_t wint_t wctype_t
+
+          _Bool _Complex int8_t int16_t int32_t int64_t
+          uint8_t uint16_t uint32_t uint64_t int_least8_t
+          int_least16_t int_least32_t int_least64_t
+          uint_least8_t uint_least16_t uint_least32_t
+          uint_least64_t int_fast8_t int_fast16_t int_fast32_t
+          int_fast64_t uint_fast8_t uint_fast16_t uint_fast32_t
+          uint_fast64_t intptr_t uintptr_t intmax_t
+          uintmax_t
         )
       end
 
@@ -34,58 +47,87 @@ module Rouge
         )
       end
 
-      state :whitespace do
-        rule /^#if\s+0\b/, 'Comment.Preproc', :if_0
-        rule /^#/, 'Comment.Preproc', :macro
-        rule /^#{ws}#if\s+0\b/, 'Comment.Preproc', :if_0
-        rule /^#{ws}#/, 'Comment.Preproc', :macro
-        rule /^(\s*)(#{id}:(?!:))/ do
-          group 'Text'
-          group 'Name.Label'
-        end
+      # high priority for filename matches
+      def self.analyze_text(*)
+        0.3
+      end
 
-        rule /\s+/m, 'Text'
-        rule /\\\n/, 'Text' # line continuation
-        rule %r(//(\n|(.|\n)*?[^\\]\n)), 'Comment.Single'
-        rule %r(/(\\\n)?[*](.|\n)*?[*](\\\n)?/), 'Comment.Multiline'
+      def self.builtins
+        @builtins ||= []
+      end
+
+      start { push :bol }
+
+      state :expr_bol do
+        mixin :inline_whitespace
+
+        rule /#if\s0/, Comment, :if_0
+        rule /#/, Comment::Preproc, :macro
+
+        rule(//) { pop! }
+      end
+
+      # :expr_bol is the same as :bol but without labels, since
+      # labels can only appear at the beginning of a statement.
+      state :bol do
+        rule /#{id}:(?!:)/, Name::Label
+        mixin :expr_bol
+      end
+
+      state :inline_whitespace do
+        rule /[ \t\r]+/, Text
+        rule /\\\n/, Text # line continuation
+        rule %r(/(\\\n)?[*].*?[*](\\\n)?/)m, Comment::Multiline
+      end
+
+      state :whitespace do
+        rule /\n+/m, Text, :bol
+        rule %r(//(\\.|.)*?\n), Comment::Single, :bol
+        mixin :inline_whitespace
+      end
+
+      state :expr_whitespace do
+        rule /\n+/m, Text, :expr_bol
+        mixin :whitespace
       end
 
       state :statements do
-        rule /\s+/m, 'Text'
-
-        rule /L?"/, 'Literal.String', :string
-        rule %r(L?'(\\.|\\[0-7]{1,3}|\\x[a-f0-9]{1,2}|[^\\'\n])')i, 'Literal.String.Char'
-        rule %r((\d+\.\d*|\.\d+|\d+)[e][+-]?\d+[lu]*)i, 'Literal.Number.Float'
-        rule /0x[0-9a-f]+[lu]*/i, 'Literal.Number.Hex'
-        rule /0[0-7]+[lu]*/i, 'Literal.Number.Oct'
-        rule /\d+[lu]*/i, 'Literal.Number.Integer'
-        rule %r(\*/), 'Error'
-        rule %r([~!%^&*+=\|?:<>/-]), 'Operator'
-        rule /[()\[\],.]/, 'Punctuation'
-        rule /\bcase\b/, 'Keyword', :case
-        rule /(?:true|false|NULL)\b/, 'Name.Builtin'
+        mixin :whitespace
+        rule /L?"/, Str, :string
+        rule %r(L?'(\\.|\\[0-7]{1,3}|\\x[a-f0-9]{1,2}|[^\\'\n])')i, Str::Char
+        rule %r((\d+\.\d*|\.\d+|\d+)[e][+-]?\d+[lu]*)i, Num::Float
+        rule /0x[0-9a-f]+[lu]*/i, Num::Hex
+        rule /0[0-7]+[lu]*/i, Num::Oct
+        rule /\d+[lu]*/i, Num::Integer
+        rule %r(\*/), Error
+        rule %r([~!%^&*+=\|?:<>/-]), Operator
+        rule /[()\[\],.]/, Punctuation
+        rule /\bcase\b/, Keyword, :case
+        rule /(?:true|false|NULL)\b/, Name::Builtin
         rule id do |m|
           name = m[0]
 
           if self.class.keywords.include? name
-            token 'Keyword'
+            token Keyword
           elsif self.class.keywords_type.include? name
-            token 'Keyword.Type'
+            token Keyword::Type
           elsif self.class.reserved.include? name
-            token 'Keyword.Reserved'
+            token Keyword::Reserved
+          elsif self.class.builtins.include? name
+            token Name::Builtin
           else
-            token 'Name'
+            token Name
           end
         end
       end
 
       state :case do
-        rule /:/, 'Punctuation', :pop!
+        rule /:/, Punctuation, :pop!
         mixin :statements
       end
 
       state :root do
-        mixin :whitespace
+        mixin :expr_whitespace
 
         # functions
         rule %r(
@@ -95,11 +137,11 @@ module Rouge
           (#{ws})({)         # open brace
         )mx do |m|
           # TODO: do this better.
-          delegate C, m[1]
-          token 'Name.Function', m[2]
-          delegate C, m[3]
-          delegate C, m[4]
-          token 'Punctuation', m[5]
+          recurse m[1]
+          token Name::Function, m[2]
+          recurse m[3]
+          recurse m[4]
+          token Punctuation, m[5]
           push :function
         end
 
@@ -111,11 +153,11 @@ module Rouge
           (#{ws})(;)       # semicolon
         )mx do |m|
           # TODO: do this better.
-          delegate C, m[1]
-          token 'Name.Function'
-          delegate C, m[3]
-          delegate C, m[4]
-          token 'Punctuation'
+          recurse m[1]
+          token Name::Function
+          recurse m[3]
+          recurse m[4]
+          token Punctuation
           push :statement
         end
 
@@ -123,42 +165,43 @@ module Rouge
       end
 
       state :statement do
-        rule /;/, 'Punctuation', :pop!
-        mixin :whitespace
+        rule /;/, Punctuation, :pop!
+        mixin :expr_whitespace
         mixin :statements
-        rule /[{}]/, 'Punctuation'
+        rule /[{}]/, Punctuation
       end
 
       state :function do
         mixin :whitespace
         mixin :statements
-        rule /;/, 'Punctuation'
-        rule /{/, 'Punctuation', :function
-        rule /}/, 'Punctuation', :pop!
+        rule /;/, Punctuation
+        rule /{/, Punctuation, :function
+        rule /}/, Punctuation, :pop!
       end
 
       state :string do
-        rule /"/, 'Literal.String', :pop!
-        rule /\\([\\abfnrtv"']|x[a-fA-F0-9]{2,4}|[0-7]{1,3})/, 'Literal.String.Escape'
-        rule /[^\\"\n]+/, 'Literal.String'
-        rule /\\\n/, 'Literal.String'
-        rule /\\/, 'Literal.String' # stray backslash
+        rule /"/, Str, :pop!
+        rule /\\([\\abfnrtv"']|x[a-fA-F0-9]{2,4}|[0-7]{1,3})/, Str::Escape
+        rule /[^\\"\n]+/, Str
+        rule /\\\n/, Str
+        rule /\\/, Str # stray backslash
       end
 
       state :macro do
-        rule %r([^/\n]+), 'Comment.Preproc'
-        rule %r(/[*].*?[*]/)m, 'Comment.Multiliine'
-        rule %r(//.*$), 'Comment.Single'
-        rule %r(/), 'Comment.Preproc'
-        rule /(?<=\\)\n/, 'Comment.Preproc'
-        rule /\n/, 'Comment.Preproc', :pop!
+        # NB: pop! goes back to :bol
+        rule /\n/, Comment::Preproc, :pop!
+        rule %r([^/\n\\]+), Comment::Preproc
+        rule /\\./m, Comment::Preproc
+        mixin :inline_whitespace
+        rule %r(/), Comment::Preproc
       end
 
       state :if_0 do
-        rule /^\s*#if.*?(?<!\\)\n/, 'Comment.Preproc', :if_0
-        rule /^\s*#el(?:se|if).*\n/, 'Comment.Preproc', :pop!
-        rule /^\s*#endif.*?(?<!\\)\n/, 'Comment.Preproc', :pop!
-        rule /.*?\n/, 'Comment'
+        # NB: no \b here, to cover #ifdef and #ifndef
+        rule /^\s*#if/, Comment, :if_0
+        rule /^\s*#\s*el(?:se|if)/, Comment, :pop!
+        rule /^\s*#\s*endif\b.*?(?<!\\)\n/m, Comment, :pop!
+        rule /.*?\n/, Comment
       end
     end
   end

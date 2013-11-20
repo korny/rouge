@@ -7,11 +7,24 @@ module Rouge
     class HTML < Formatter
       tag 'html'
 
-      # @option opts :css_class
-      # A css class to be used for the generated <pre> tag.
+      # @option opts [String] :css_class ('highlight')
+      # @option opts [true/false] :line_numbers (false)
+      # @option opts [Rouge::CSSTheme] :inline_theme (nil)
+      # @option opts [true/false] :wrap (true)
+      #
+      # Initialize with options.
+      #
+      # If `:inline_theme` is given, then instead of rendering the
+      # tokens as <span> tags with CSS classes, the styles according to
+      # the given theme will be inlined in "style" attributes.  This is
+      # useful for formats in which stylesheets are not available.
+      #
+      # Content will be wrapped in a tag (`div` if tableized, `pre` if
+      # not) with the given `:css_class` unless `:wrap` is set to `false`.
       def initialize(opts={})
-        @css_class = opts[:css_class] || 'highlight'
-        @line_numbers = opts.fetch(:line_numbers) { false }
+        @css_class = opts.fetch(:css_class, 'highlight')
+        @line_numbers = opts.fetch(:line_numbers, false)
+        @inline_theme = opts.fetch(:inline_theme, nil)
         @wrap = opts.fetch(:wrap, true)
       end
 
@@ -24,6 +37,7 @@ module Rouge
         end
       end
 
+    private
       def stream_untableized(tokens, &b)
         yield "<pre class=#{@css_class.inspect}>" if @wrap
         tokens.each do |tok, val|
@@ -34,22 +48,27 @@ module Rouge
 
       def stream_tableized(tokens, &b)
         num_lines = 0
-        code = ''
+        last_val = ''
+        formatted = ''
 
         tokens.each do |tok, val|
+          last_val = val
           num_lines += val.scan(/\n/).size
-          span(tok, val) { |str| code << str }
+          span(tok, val) { |str| formatted << str }
         end
 
-        # add an extra line number for non-newline-terminated strings
-        num_lines += 1 if code[-1] != "\n"
+        # add an extra line for non-newline-terminated strings
+        if last_val[-1] != "\n"
+          num_lines += 1
+          span(Token::Tokens::Text::Whitespace, "\n") { |str| formatted << str }
+        end
 
         # generate a string of newline-separated line numbers for the gutter
         numbers = num_lines.times.map do |x|
-          %<<div class="lineno">#{x+1}</div>>
+          %<<pre class="lineno">#{x+1}</pre>>
         end.join
 
-        yield "<pre class=#{@css_class.inspect}>" if @wrap
+        yield "<div class=#{@css_class.inspect}>" if @wrap
         yield "<table><tbody><tr>"
 
         # the "gl" class applies the style for Generic.Lineno
@@ -58,14 +77,15 @@ module Rouge
         yield '</td>'
 
         yield '<td class="code">'
-        yield code
+        yield '<pre>'
+        yield formatted
+        yield '</pre>'
         yield '</td>'
 
         yield '</tr></tbody></table>'
-        yield '</pre>' if @wrap
+        yield '</div>' if @wrap
       end
 
-    private
       def span(tok, val, &b)
         # TODO: properly html-encode val
         val = CGI.escape_html(val)
@@ -76,9 +96,18 @@ module Rouge
         when nil
           raise "unknown token: #{tok.inspect} for #{val.inspect}"
         else
-          yield '<span class='
-          yield tok.shortname.inspect
-          yield '>'
+          if @inline_theme
+            rules = @inline_theme.style_for(tok).rendered_rules
+
+            yield '<span style='
+            yield rules.to_a.join(';').inspect
+            yield '>'
+          else
+            yield '<span class='
+            yield tok.shortname.inspect
+            yield '>'
+          end
+
           yield val
           yield '</span>'
         end
