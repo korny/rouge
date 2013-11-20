@@ -244,9 +244,12 @@ module Rouge
       @null_steps     = 0
 
       until stream.eos?
-        debug { "lexer: #{self.class.tag}" } if @debug
-        debug { "stack: #{stack.map(&:name).inspect}" } if @debug
-        debug { "stream: #{stream.peek(20).inspect}" } if @debug
+        if @debug
+          debug { "lexer: #{self.class.tag}" }
+          debug { "stack: #{stack.map(&:name).inspect}" }
+          debug { "stream: #{stream.peek(20).inspect}" }
+        end
+
         success = step(state, stream)
 
         if !success

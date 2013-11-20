@@ -346,6 +346,9 @@ module Rouge
     # is given as a block because some debug messages contain calculated
     # information that is unnecessary for lexing in the real world.
     #
+    # Calls to this method should be guarded with "if @debug" for best
+    # performance when debugging is turned off.
+    #
     # @example
     #   debug { "hello, world!" } if @debug
     def debug
