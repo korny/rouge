@@ -94,16 +94,22 @@ module Rouge
         callback ||= case next_state
         when :pop!
           proc do |stream|
+            debug { "    yielding #{tok.qualname}, #{stream[0].inspect}" } if @debug
             @output_stream.call(tok, stream[0])
+            debug { "    popping stack: #{1}" } if @debug
             @stack.pop or raise 'empty stack!'
           end
         when Symbol
           proc do |stream|
+            debug { "    yielding #{tok.qualname}, #{stream[0].inspect}" } if @debug
             @output_stream.call(tok, stream[0])
-            @stack.push(@states[next_state] || self.class.get_state(next_state))
+            state = @states[next_state] || self.class.get_state(next_state)
+            debug { "    pushing #{state.name}" } if @debug
+            @stack.push(state)
           end
         else
           proc do |stream|
+            debug { "    yielding #{tok.qualname}, #{stream[0].inspect}" } if @debug
             @output_stream.call(tok, stream[0])
           end
         end
